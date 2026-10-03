@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Choque de Palabras · El duelo de palabras más rápido</title>
+<meta name="description" content="Choque de Palabras: el duelo de palabras más rápido. Tocá primero, robale segundos al rival y no choques. Contra la compu o con amigos online. Gratis para Android.">
+<meta name="theme-color" content="#13123B">
+<meta property="og:title" content="Choque de Palabras">
+<meta property="og:description" content="El duelo de palabras más rápido. Gratis para Android.">
+<meta property="og:image" content="portada.jpg">
+<link rel="icon" href="icono.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..900&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#13123B; --bg2:#1C1A52; --panel:#211F5C; --ink:#FFFFFF; --muted:#B6B4E8; --line:rgba(255,255,255,.12);
+  --blue:#5B78FF; --red:#FF5A33; --green:#17D3A0; --yellow:#FFC83D; --tile:#FFF6E3; --tile-edge:#D9B978; --tile-ink:#1A1640;
+  --disp:"Archivo","Arial Black",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 "Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+/* Fondo con fichas */
+.bgfx{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(60vw 60vw at 85% -10%, rgba(255,90,51,.28), transparent 60%),
+    radial-gradient(70vw 70vw at -10% 20%, rgba(91,120,255,.35), transparent 60%),
+    var(--bg)}
+.bgfx::after{content:"";position:absolute;inset:0;opacity:.06;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect x='14' y='14' width='26' height='28' rx='6' fill='none' stroke='white' stroke-width='2' transform='rotate(-10 27 28)'/%3E%3Ctext x='21' y='35' font-family='Arial' font-weight='900' font-size='15' fill='white' transform='rotate(-10 27 28)'%3EA%3C/text%3E%3Crect x='56' y='52' width='22' height='24' rx='5' fill='none' stroke='white' stroke-width='2' transform='rotate(12 67 64)'/%3E%3C/svg%3E")}
+
+/* Fichas */
+.tile{display:inline-grid;place-items:center;position:relative;background:var(--tile);color:var(--tile-ink);border-radius:.18em;
+  font-family:var(--disp);font-stretch:112%;font-weight:900;line-height:1;width:1.05em;height:1.15em;
+  box-shadow:inset 0 -.08em 0 var(--tile-edge),inset 0 .03em 0 #fff,0 .12em .25em -.05em rgba(0,0,0,.55)}
+.tile sub{position:absolute;right:.1em;bottom:.12em;font-size:.32em;font-weight:700;font-stretch:100%}
+.tile.y{background:var(--yellow)}
+
+/* Encabezado */
+header{padding:18px 0}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--disp);font-stretch:118%;font-weight:800}
+.brand img{width:40px;height:40px;border-radius:11px}
+.nav{display:flex;gap:18px;font-weight:600;color:var(--muted)}
+.nav a{text-decoration:none}
+@media (max-width:600px){.nav{display:none}}
+
+/* Portada */
+.hero{padding:28px 0 56px}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
+@media (max-width:860px){.hero .wrap{grid-template-columns:1fr;text-align:center}}
+.logo{font-size:clamp(2.6rem,9vw,4.6rem);display:flex;gap:.08em;flex-wrap:nowrap}
+@media (max-width:860px){.logo{justify-content:center}}
+.logo .tile{animation:drop .6s cubic-bezier(.2,.9,.3,1.3) both}
+.logo .tile:nth-child(1){animation-delay:.05s}.logo .tile:nth-child(2){animation-delay:.12s;transform:rotate(-5deg)}
+.logo .tile:nth-child(3){animation-delay:.19s}.logo .tile:nth-child(4){animation-delay:.26s}
+.logo .tile:nth-child(5){animation-delay:.33s;transform:rotate(4deg)}.logo .tile:nth-child(6){animation-delay:.4s}
+@keyframes drop{0%{opacity:0;transform:translateY(-40px) rotate(-14deg) scale(1.15)}60%{opacity:1}}
+.sub{display:inline-block;margin:16px 0 22px;background:var(--red);color:#fff;font-family:var(--disp);font-stretch:118%;font-weight:900;
+  font-size:clamp(1.3rem,4.5vw,1.9rem);padding:.15em .55em;border-radius:12px;transform:rotate(-2deg);box-shadow:0 6px 0 #B83A1C}
+h1{font-family:var(--disp);font-stretch:118%;font-weight:900;font-size:clamp(1.9rem,5.4vw,3.1rem);line-height:1.05;margin:0 0 14px;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--yellow)}
+.lead{color:var(--muted);font-size:1.12rem;max-width:34em;margin:0 0 26px}
+@media (max-width:860px){.lead{margin-left:auto;margin-right:auto}}
+.cta{display:inline-flex;align-items:center;gap:12px;background:var(--yellow);color:var(--tile-ink);text-decoration:none;font-weight:800;
+  font-size:1.08rem;padding:15px 22px;border-radius:16px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.18),0 18px 34px -16px rgba(255,200,61,.7);transition:transform .1s}
+.cta:active{transform:translateY(3px)}
+.cta svg{width:26px;height:26px}
+.note{color:var(--muted);font-size:.9rem;margin-top:12px}
+
+/* Teléfono */
+.phones{position:relative;height:560px}
+@media (max-width:860px){.phones{height:500px;max-width:420px;margin:0 auto;width:100%}}
+.phone{position:absolute;width:240px;border-radius:30px;padding:8px;background:#0B0A26;box-shadow:0 30px 60px -20px rgba(0,0,0,.8),0 0 0 2px rgba(255,255,255,.08)}
+.phone img{border-radius:23px}
+.phone.a{left:6%;top:30px;transform:rotate(-8deg)}
+.phone.b{right:6%;top:0;transform:rotate(6deg);z-index:2}
+@media (max-width:860px){.phone{width:200px}.phone.a{left:2%}.phone.b{right:2%}}
+.burst{position:absolute;left:50%;top:48%;width:170px;height:170px;transform:translate(-50%,-50%);z-index:3;filter:drop-shadow(0 10px 16px rgba(0,0,0,.45))}
+
+/* Secciones */
+section{padding:56px 0}
+h2{font-family:var(--disp);font-stretch:118%;font-weight:900;font-size:clamp(1.6rem,4.5vw,2.3rem);line-height:1.1;margin:0 0 10px}
+.kicker{color:var(--yellow);font-weight:700;margin:0 0 6px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+@media (max-width:860px){.cards{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:22px;position:relative;overflow:hidden;box-shadow:0 18px 40px -22px rgba(0,0,0,.75)}
+.card .ic{font-size:2.1rem;margin-bottom:14px}
+.card h3{font-family:var(--disp);font-stretch:112%;font-weight:800;font-size:1.25rem;margin:0 0 6px}
+.card p{margin:0;color:var(--muted)}
+.card::before{content:"";position:absolute;inset:0 0 auto;height:5px;background:var(--c)}
+
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}
+@media (max-width:760px){.modes{grid-template-columns:1fr}}
+.mode{border-radius:24px;padding:26px;color:#fff}
+.mode.blue{background:linear-gradient(135deg,#4A63F0,#5B78FF)}
+.mode.red{background:linear-gradient(135deg,#E8452A,#FF6A45)}
+.mode h3{font-family:var(--disp);font-stretch:118%;font-weight:900;font-size:1.5rem;margin:0 0 8px}
+.mode p{margin:0;opacity:.92}
+
+.shots{display:flex;gap:16px;overflow-x:auto;padding:22px 2px 10px;scroll-snap-type:x mandatory}
+.shots img{width:220px;flex:none;border-radius:22px;scroll-snap-align:start;box-shadow:0 20px 40px -20px rgba(0,0,0,.8);border:1px solid var(--line)}
+
+.final{text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:40px 22px;margin:20px 0}
+.final .logo{justify-content:center;font-size:clamp(2rem,7vw,3rem);margin-bottom:16px}
+
+/* Pie */
+footer{padding:36px 0 calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:var(--muted)}
+.andamio{display:inline-flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none}
+.andamio svg{width:36px;height:36px}
+.andamio b{display:block;font:400 1.3rem/1 "DejaVu Sans",Verdana,system-ui,sans-serif;text-align:left}
+.andamio span{display:block;font:400 .62rem/1 "DejaVu Sans",Verdana,system-ui,sans-serif;letter-spacing:.42em;color:var(--muted);margin-top:4px;text-align:left}
+footer p{margin:10px 0 0;font-size:.92rem}
+footer nav{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:.92rem}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="bgfx"></div>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#"><img src="icono.png" alt="">Choque de Palabras</a>
+    <nav class="nav"><a href="#como">Cómo se juega</a><a href="#modos">Modos</a><a href="politica-de-privacidad.html">Privacidad</a></nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <div class="logo" aria-label="Choque">
+          <span class="tile">C<sub>3</sub></span><span class="tile">H<sub>4</sub></span><span class="tile">O<sub>1</sub></span><span class="tile">Q<sub>5</sub></span><span class="tile y">U<sub>1</sub></span><span class="tile">E<sub>1</sub></span>
+        </div>
+        <div class="sub">de palabras</div>
+        <h1>El duelo de palabras <em>más rápido</em>.</h1>
+        <p class="lead">Una consigna, segundos para responder y un rival que piensa lo mismo que vos. Tocá primero, robale segundos y no choques.</p>
+        <a class="cta" href="https://play.google.com/store/apps/details?id=com.andamiosoftware.choquedepalabras">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.8v18.4c0 .6.7 1 1.2.7l15.4-9.2c.5-.3.5-1.1 0-1.4L5.2 2.1C4.7 1.8 4 2.2 4 2.8z"/></svg>
+          Descargar gratis en Google Play
+        </a>
+        <p class="note">Para Android. Contra la compu funciona sin conexión.</p>
+      </div>
+      <div class="phones" aria-hidden="true">
+        <div class="phone a"><img src="captura-1.jpg" alt=""></div>
+        <div class="phone b"><img src="captura-2.jpg" alt=""></div>
+        <svg class="burst" viewBox="0 0 100 100"><path fill="#FFC83D" stroke="#1A1640" stroke-width="3" stroke-linejoin="round" d="M50 4 58 30 84 14 70 40 96 46 72 58 88 84 60 72 54 98 44 72 18 88 30 60 4 54 30 42 14 18 40 30Z"/><text x="50" y="58" text-anchor="middle" font-family="Archivo,Arial Black,sans-serif" font-weight="900" font-size="20" fill="#1A1640">¡PUM!</text></svg>
+      </div>
+    </div>
+  </div>
+
+  <section id="como">
+    <div class="wrap">
+      <p class="kicker">Cómo se juega</p>
+      <h2>Pensá rápido. Pensá distinto.</h2>
+      <div class="cards">
+        <div class="card" style="--c:var(--blue)"><div class="ic">⚡</div><h3>Una consigna por ronda</h3><p>Una palabra con R, una que rime con «camión», un animal con P, una palabra sin ninguna A. Miles de combinaciones que no se repiten.</p></div>
+        <div class="card" style="--c:var(--red)"><div class="ic">💥</div><h3>Si chocan, nadie suma</h3><p>Si dos escriben la misma palabra, chocan y pierden los dos. Gana el que encuentra la que a nadie se le ocurrió.</p></div>
+        <div class="card" style="--c:var(--yellow)"><div class="ic">⏱️</div><h3>Robale segundos</h3><p>Respondé bien en menos de 10 segundos y tus rivales tienen menos tiempo en la ronda siguiente.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="modos">
+    <div class="wrap">
+      <p class="kicker">Modos de juego</p>
+      <h2>Como quieras, con quien quieras.</h2>
+      <div class="modes">
+        <div class="mode blue"><h3>Todos a la vez</h3><p>Todos escriben al mismo tiempo. Rachas, rondas relámpago que valen doble y choques.</p></div>
+        <div class="mode red"><h3>Pulsador</h3><p>Escribí tu palabra y tocá «¡Lo tengo!». El primero frena a los demás; si se equivoca, pierde 5 segundos.</p></div>
+      </div>
+      <div class="cards">
+        <div class="card" style="--c:var(--green)"><div class="ic">🤖</div><h3>Contra la compu</h3><p>Hasta 3 rivales en fácil, normal o difícil. Sin internet.</p></div>
+        <div class="card" style="--c:var(--blue)"><div class="ic">📱</div><h3>Salas con amigos</h3><p>De 2 a 4 celulares con un código de sala. Todos contra todos o en parejas.</p></div>
+        <div class="card" style="--c:var(--red)"><div class="ic">📅</div><h3>Desafío del día</h3><p>Las mismas consignas para todos, todos los días. Y el modo Sin fin con 3 vidas.</p></div>
+      </div>
+      <div class="shots" aria-label="Capturas del juego">
+        <img src="captura-1.jpg" alt="Portada del juego" loading="lazy">
+        <img src="captura-4.jpg" alt="Pantalla de inicio con niveles y logros" loading="lazy">
+        <img src="captura-2.jpg" alt="Modo pulsador con el botón ¡Lo tengo!" loading="lazy">
+        <img src="captura-3.jpg" alt="Resultado de una ronda con choque" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="final">
+        <div class="logo" aria-hidden="true"><span class="tile">C</span><span class="tile y">P</span></div>
+        <h2>Más de un millón de palabras. Una sola te hace ganar.</h2>
+        <p class="lead" style="margin:0 auto 24px">Gratis, en español y hecho en Argentina.</p>
+        <a class="cta" href="https://play.google.com/store/apps/details?id=com.andamiosoftware.choquedepalabras">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.8v18.4c0 .6.7 1 1.2.7l15.4-9.2c.5-.3.5-1.1 0-1.4L5.2 2.1C4.7 1.8 4 2.2 4 2.8z"/></svg>
+          Descargar en Google Play
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <a class="andamio" href="https://instagram.com/andamiosoftwaresn">
+    <svg viewBox="0 0 100 100" aria-hidden="true"><rect x="7" y="7" width="86" height="86" rx="22" fill="none" stroke="currentColor" stroke-width="6"/><path d="M35 31v38M65 31v38" stroke="currentColor" stroke-width="7.5" stroke-linecap="round" fill="none"/><path d="M35 45.5h30M35 55h30" stroke="currentColor" stroke-width="5" fill="none"/></svg>
+    <div><b>andamio</b><span>software</span></div>
+  </a>
+  <p>Andamio Software <span id="yr">2026</span></p>
+  <nav>
+    <a href="politica-de-privacidad.html">Política de privacidad</a>
+    <a href="https://wa.me/5491125650744">WhatsApp</a>
+    <a href="https://instagram.com/andamiosoftwaresn">Instagram</a>
+  </nav>
+</footer>
+<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+</body>
+</html>
