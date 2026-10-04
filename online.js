@@ -1,73 +1,95 @@
-/* Salas online de la app de Android, con Supabase Realtime.
+/* Salas online de la app, con Supabase Realtime (solo "broadcast", sin "presence").
    Ofrece la misma forma que las salas de Claude: join(nombre) devuelve una sala con
-   presence(objeto), peers(), onPeers(cb) y leave(). Cada jugador publica su estado
-   completo como "presencia"; nada se guarda en una base de datos. */
+   presence(objeto), peers(), onPeers(cb) y leave().
+   - Cada celular manda su estado completo cuando cambia (máximo 4 veces por segundo) y además
+     lo repite cada 2 segundos, así nadie se queda trabado si se pierde un mensaje o entra tarde.
+   - Un jugador sigue "en la sala" mientras siga llegando su estado (se da por ido a los 7 s).
+   - Si la conexión inicial falla, reintenta solo hasta 3 veces. */
 (function () {
   const C = window.ONLINE_CONFIG || {};
   if (!C.url || !C.key || !window.supabase || !window.supabase.createClient) return;
   let client = null;
   const getClient = () => client || (client = window.supabase.createClient(C.url, C.key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { params: { eventsPerSecond: 20 } }
+    auth: { persistSession: false, autoRefreshToken: false }
   }));
   const myKey = "k" + Math.random().toString(36).slice(2, 12);
+  const HEARTBEAT = 2000, STALE = 7000, THROTTLE = 250;
 
-  function join(name) {
+  function subscribeOnce(name, onMsg){
     return new Promise((resolve, reject) => {
-      const ch = getClient().channel("cdp:" + name, { config: { presence: { key: myKey } } });
-      let peers = [], listeners = [], errListeners = [], last = null, timer = null, lastSent = 0, closed = false;
-      const rebuild = () => {
-        const st = ch.presenceState(), out = [];
-        for (const [key, metas] of Object.entries(st)) {
-          const m = metas && metas[metas.length - 1];
-          if (!m) continue;
-          const p = Object.assign({}, m); delete p.presence_ref;
-          out.push({ peer: key, isMe: key === myKey, sameTab: key === myKey, presence: p });
-        }
-        peers = out;
-        listeners.forEach(f => { try { f({ peers: out }); } catch (e) {} });
-      };
-      /* Solo "sync": llega con el estado completo ya actualizado, sin huecos al re-publicar */
-      ch.on("presence", { event: "sync" }, rebuild);
-      /* Envía como mucho 4 actualizaciones por segundo, nunca repite lo mismo y, si Supabase
-         no confirma el envío (límite de mensajes o corte), lo reintenta hasta que llegue */
-      let lastJson = "", pendingJson = "";
-      const flush = async () => {
-        timer = null;
-        if (closed || !last) return;
-        const json = JSON.stringify(last);
-        if (json === lastJson) return;
-        lastSent = Date.now(); pendingJson = json;
-        let res = "error";
-        try { res = await ch.track(last); } catch (e) {}
-        if (res === "ok") { if (pendingJson === json) lastJson = json; }
-        else if (!closed && !timer) timer = setTimeout(flush, 500);
-      };
-      const api = {
-        presence(obj) {
-          last = JSON.parse(JSON.stringify(obj));
-          const wait = Math.max(0, 250 - (Date.now() - lastSent));
-          if (!timer) timer = setTimeout(flush, wait);
-          return Promise.resolve();
-        },
-        peers() { return peers.slice(); },
-        onPeers(cb, err) { listeners.push(cb); if (err) errListeners.push(err); return () => { listeners = listeners.filter(f => f !== cb); }; },
-        async leave() { closed = true; clearTimeout(timer); try { await ch.untrack(); } catch (e) {} try { await getClient().removeChannel(ch); } catch (e) {} },
-        connected() { return !closed; }
-      };
-      let settled = false;
-      const to = setTimeout(() => { if (!settled) { settled = true; reject(new Error("timeout")); } }, 12000);
+      const ch = getClient().channel("cdp:" + name, { config: { broadcast: { self: false, ack: true } } });
+      ch.on("broadcast", { event: "st" }, ({ payload }) => onMsg("st", payload))
+        .on("broadcast", { event: "bye" }, ({ payload }) => onMsg("bye", payload));
+      let done = false;
+      const to = setTimeout(() => { if (!done) { done = true; try { getClient().removeChannel(ch); } catch (e) {} reject(new Error("timeout")); } }, 12000);
       ch.subscribe(status => {
-        if (status === "SUBSCRIBED") {
-          if (!settled) { settled = true; clearTimeout(to); resolve(api); }
-          else if (last) { lastSent = 0; lastJson = ""; flush(); } /* al reconectarse, vuelve a publicar su estado */
-        }
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          if (!settled) { settled = true; clearTimeout(to); reject(new Error(status)); }
-          else errListeners.forEach(f => { try { f(status); } catch (e) {} });
+        if (status === "SUBSCRIBED") { if (!done) { done = true; clearTimeout(to); resolve(ch); } else if (ch._onResub) ch._onResub(); }
+        else if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") && !done) {
+          done = true; clearTimeout(to); try { getClient().removeChannel(ch); } catch (e) {} reject(new Error(status));
         }
       });
     });
+  }
+
+  async function join(name){
+    const states = {};            /* clave -> { o: estado, seq, t: cuándo llegó } */
+    let listeners = [], last = null, lastJson = "", seq = 0, timer = null, lastSent = 0, closed = false, hb = null, ch = null;
+    let api = null;
+    const notify = () => { if (!api) return; const ps = api.peers(); listeners.forEach(f => { try { f({ peers: ps }); } catch (e) {} }); };
+    const onMsg = (ev, p) => {
+      if (!p || !p.k || p.k === myKey) return;
+      if (ev === "bye") { delete states[p.k]; notify(); return; }
+      const prev = states[p.k];
+      if (prev && prev.seq > p.seq && prev.boot === p.boot) return;   /* mensaje viejo que llegó tarde */
+      states[p.k] = { o: p.o, seq: p.seq, boot: p.boot, t: Date.now() };
+      notify();
+    };
+    const boot = Math.random().toString(36).slice(2, 8);
+    const send = async (force) => {
+      timer = null;
+      if (closed || !last || !ch) return;
+      const json = JSON.stringify(last);
+      if (!force && json === lastJson) return;
+      lastSent = Date.now(); seq++;
+      let res = "error";
+      try { res = await ch.send({ type: "broadcast", event: "st", payload: { k: myKey, boot, seq, o: last } }); } catch (e) {}
+      if (res === "ok") lastJson = json;
+      else if (!closed && !timer) timer = setTimeout(() => send(true), 500);   /* no llegó: reintenta */
+    };
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3 && !ch; attempt++) {
+      try { ch = await subscribeOnce(name, onMsg); }
+      catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 800 + attempt * 700)); }
+    }
+    if (!ch) throw lastErr || new Error("no se pudo conectar");
+    ch._onResub = () => { lastJson = ""; send(true); };
+    hb = setInterval(() => {
+      send(true);
+      const now = Date.now(); let gone = false;
+      for (const k of Object.keys(states)) if (now - states[k].t > STALE) { delete states[k]; gone = true; }
+      if (gone) notify();
+    }, HEARTBEAT);
+    api = {
+      presence(obj) {
+        last = JSON.parse(JSON.stringify(obj));
+        const wait = Math.max(0, THROTTLE - (Date.now() - lastSent));
+        if (!timer) timer = setTimeout(() => send(false), wait);
+        return Promise.resolve();
+      },
+      peers() {
+        const out = Object.entries(states).map(([k, s]) => ({ peer: k, isMe: false, sameTab: false, presence: s.o }));
+        if (last) out.unshift({ peer: myKey, isMe: true, sameTab: true, presence: last });
+        return out;
+      },
+      onPeers(cb) { listeners.push(cb); return () => { listeners = listeners.filter(f => f !== cb); }; },
+      async leave() {
+        closed = true; clearTimeout(timer); clearInterval(hb);
+        try { await ch.send({ type: "broadcast", event: "bye", payload: { k: myKey } }); } catch (e) {}
+        try { await getClient().removeChannel(ch); } catch (e) {}
+      },
+      connected() { return !closed; }
+    };
+    return api;
   }
   window.OnlineRoom = { join };
 })();

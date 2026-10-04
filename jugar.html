@@ -1971,7 +1971,7 @@ function renderSetup(hs){
   } else {
     $("optCard").style.display = "none"; $("optRead").style.display = "";
     const th = cfg.themes.length ? cfg.themes.filter(k => THEMES[k]).map(k => THEMES[k].n).join(", ") : "solo letras";
-    setHTML("optRead", `<h3>Así va a ser</h3><p style="margin:0">${cfg.mode === "teams" ? "Parejas 2 contra 2" : "Todos contra todos"}${cfg.style === "buzz" ? " con pulsador" : ""}, ${cfg.rounds ? `${cfg.rounds} rondas` : "sin fin, con 3 vidas cada uno,"} de ${cfg.time} segundos${cfg.flash ? ", con rondas relámpago" : ""}${cfg.ai ? " y consignas creativas de la IA" : ""}. Temas: ${esc(th)}.</p><p class="muted" style="margin:8px 0 0"><span class="dots">Esperando que ${esc(seats[0] ? seats[0].nick : "el anfitrión")} empiece</span></p>`);
+    setHTML("optRead", `<h3>Así va a ser</h3><p style="margin:0">${cfg.mode === "teams" ? "Parejas 2 contra 2" : "Todos contra todos"}${cfg.style === "buzz" ? " con pulsador" : ""}, ${cfg.rounds ? `${cfg.rounds} rondas` : "sin fin, con 3 vidas cada uno,"} de ${cfg.time} segundos${cfg.flash ? ", con rondas relámpago" : ""}${cfg.ai && !NO_AI ? " y consignas creativas de la IA" : ""}${cfg.loco ? ", con teclado loco" : ""}. Temas: ${esc(th)}.</p><p class="muted" style="margin:8px 0 0"><span class="dots">Esperando que ${esc(seats[0] ? seats[0].nick : "el anfitrión")} empiece</span></p>`);
     $("startBtn").style.display = "none";
   }
 }
