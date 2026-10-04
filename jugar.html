@@ -1385,7 +1385,8 @@ async function startRound(n){
   const alive = aliveSeats(S);
   S.done = S.seats.map((_, i) => !alive.includes(i));
   R = { n, a: S.seats.map(() => null), out: S.seats.map((_, i) => !alive.includes(i)), res: [], ms: [] };
-  roundStart = Date.now();
+  roundStart = Date.now() + (game ? ROUND_LEAD : 0);
+  S.go = roundStart;
   const limits = S.seats.map((_, i) => limitFor(base, S.pen[i]));
   const taken = new Set(), cands = d.cpu || [];
   cpuSched = S.seats.map((s, i) => {
@@ -1640,7 +1641,9 @@ $("cmBar").addEventListener("click", e => { const b = e.target.closest("[data-cm
 
 function hostTick(now){
   if (!S || role !== "h") return;
+  if (game) syncPongs();
   if (S.ph === "lobby") return lobbySync();
+  if (S.ph === "w" && now < roundStart) return;
   if (S.ph === "w" && R) cmTick(now);
   if (S.ph === "w" && R && isBuzz(S)) { bzTick(now); return; }
   if (S.ph === "w" && R) {
@@ -1772,15 +1775,46 @@ function bzSync(hs){
   bzSeen = k;
   const bz = hs.bz, my = mySeat(hs), now = Date.now();
   if (bz.who < 0) {
-    deadline = role === "h" ? (bzDl[my] || now) : now + (bz.rem[my] || 0);
+    deadline = role === "h" ? (bzDl[my] || now) : bz.v === 1 ? goLocal(hs) + (bz.rem[my] || 0) : now + (bz.rem[my] || 0);
     const lfk = bz.lf ? bz.lf.i + ":" + bz.lf.a : "";
     if (!first && bz.lf && lfk !== lastLf) { if (bz.lf.i === my) { sfx.bad(); buzz([80, 50, 80]); } else sfx.robbed(); }
     lastLf = lfk;
   } else if (bz.who !== my) { sfx.tick(); buzz(30); }
   lastTickSec = -1;
 }
+/* ---------- Reloj compartido en las salas ----------
+   Cada invitado mide la diferencia entre su reloj y el del anfitrión (ida y vuelta de un "ping"),
+   así todos los celulares muestran la consigna en el mismo instante, después de una cuenta 3, 2, 1. */
+const ROUND_LEAD = 3500;
+let clockOff = null, clockRtt = 1e9, pingT = 0, pongSeen = 0, pingN = 0, pingsSent = [], firstSeen = {};
+function goLocal(hs){
+  if (role === "h" || !hs || !hs.go) return role === "h" ? roundStart : Date.now();
+  if (clockOff !== null) return hs.go - clockOff;
+  const k = hs.seed + ":" + hs.n; if (!firstSeen[k]) firstSeen[k] = Date.now();
+  return firstSeen[k] + ROUND_LEAD - 400;
+}
+function guestPing(hs){
+  if (role !== "g" || !game || !me) return;
+  const pg = hs && hs.pong && hs.pong[myCid];
+  if (pg && pingsSent.includes(pg[0]) && pongSeen !== pg[0]) {
+    pongSeen = pg[0];
+    const now = Date.now(), rtt = now - pg[0], off = pg[1] + rtt / 2 - now;
+    pingN++;
+    if (clockOff === null || rtt < clockRtt) { clockOff = off; clockRtt = rtt; }   /* se queda con la medición de viaje más corto, la más precisa */
+  }
+  if (Date.now() - pingT > (pingN < 10 ? 700 : 5000)) { pingT = Date.now(); pingsSent.push(pingT); if (pingsSent.length > 30) pingsSent.shift(); me.pg = pingT; push(); }
+}
+function syncPongs(){
+  if (!S) return;
+  S.pong = S.pong || {};
+  let ch = false;
+  game.peers().forEach(p => { const pr = p.presence; if (!pr || pr.role !== "g" || !pr.cid || !pr.pg) return;
+    const cur = S.pong[pr.cid]; if (!cur || cur[0] !== pr.pg) { S.pong[pr.cid] = [pr.pg, Date.now()]; ch = true; } });
+  if (ch) push();
+}
 function sync(){
   const hs = hostState(); if (!hs) return;
+  guestPing(hs);
   bzSync(hs);
   cmSync(hs);
   const key = hs.seed + ":" + hs.n + ":" + hs.ph;
@@ -1791,7 +1825,7 @@ function sync(){
   if (hs.ph === "prep" || (hs.ph === "w" && hs.n === 0 && (!mt || mt.seed !== hs.seed))) mt = { seed:hs.seed, maxStk:0, robs:0, crash:0, long:0, allOk:true, seen:{} };
   if (hs.ph === "w") {
     const lim = limitFor(hs.left, (hs.pen || [])[my]);
-    deadline = (role === "h" ? roundStart : Date.now()) + lim; lastTickSec = -1;
+    deadline = goLocal(hs) + lim; lastTickSec = -1;
     if (isBuzz(hs)) { bzSeen = ""; bzSync(hs); }
     $("ans").value = ""; $("ans").disabled = false; $("wNote").textContent = "";
 
@@ -2012,6 +2046,16 @@ function renderPlay(hs){
   document.body.classList.toggle("writing", hs.ph === "w");
   renderCmBar(hs);
   renderGuess(hs);
+  const goIn = hs.ph === "w" ? goLocal(hs) - now : 0;
+  $("chal").classList.toggle("waiting", goIn > 0);
+  if (goIn > 0) {
+    $("glyph").textContent = String(Math.ceil(goIn / 1000)); $("glyph").classList.remove("long", "two", "xl");
+    $("chalKind").textContent = "Preparados…"; $("chalTxt").textContent = "La consigna aparece al mismo tiempo para todos.";
+    $("gPat").style.display = "none"; $("ans").disabled = true; $("sendBtn").disabled = true; $("cmBar").style.display = "none";
+    $("wNote").textContent = ""; $("barFill").style.width = "100%"; $("bar").className = "bar";
+    const sec = Math.ceil(goIn / 1000); if (sec !== lastTickSec) { lastTickSec = sec; sfx.tick(); }
+    return;
+  }
   if (hs.ph === "w" && isBuzz(hs) && hs.bz) { renderBuzz(hs, my, pen, now, left); return; }
   if ($("sendBtn").classList.contains("bz")) { $("sendBtn").classList.remove("bz"); $("sendBtn").textContent = "Enviar"; }
   if (hs.ph === "w") {

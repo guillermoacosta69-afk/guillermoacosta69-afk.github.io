@@ -1,5 +1,5 @@
 /* Guarda el juego en el celular para que abra rápido y funcione sin conexión contra la compu */
-const CACHE = "choque-web-v11";
+const CACHE = "choque-web-v12";
 const FILES = ["jugar.html", "palabras.txt", "comunes.txt", "supabase.js", "online.js", "online-config.js", "archivo-wdth.woff2", "instrument-sans-400.woff2", "instrument-sans-500.woff2", "instrument-sans-600.woff2", "instrument-sans-700.woff2", "icono-180.png", "icono-192.png", "icono-512.png", "manifest.webmanifest"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("choque-web-") && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
