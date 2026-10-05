@@ -568,6 +568,16 @@ body.playing .toast{white-space:normal;text-align:center;max-width:92vw}
 @media (prefers-reduced-motion:reduce){ .kbd.quake .key,.key.burnt::after{animation:none} body.alarm::after{animation:none;opacity:.6} }
 
 .fxnote{white-space:normal;text-align:center;max-width:92vw;width:max-content}
+
+/* Botones de comodines como en la versión web: ícono arriba, nombre y costo abajo.
+   Alto fijo con lugar para las tres líneas, así no se pisan en ningún celular. */
+.cmbar{gap:6px;align-items:stretch}
+.cm{height:auto!important;min-height:60px;flex-direction:column!important;justify-content:center!important;align-items:center!important;gap:2px;padding:5px 2px!important;overflow:hidden}
+.cm i{display:block;font-size:1.3rem!important;line-height:1.1!important;height:1.45rem}
+.cm span{display:block!important;font-size:.7rem!important;font-weight:800;line-height:1.1!important;margin:0!important;color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.cm small{display:block;font-size:.66rem!important;line-height:1.1!important;margin:0!important;color:var(--muted);font-weight:800}
+@media (max-height:700px){ body.writing .cm{min-height:50px;padding:3px 2px!important;gap:1px} body.writing .cm i{font-size:1rem!important;height:1.1rem} body.writing .cm span{display:block!important;font-size:.64rem!important} body.writing .cm small{font-size:.6rem!important}
+  body.writing .key{height:36px} body.writing .key.space{height:34px} body.writing .kbd{gap:5px} body.writing .board{gap:6px} body.writing .note{font-size:.82rem;margin:0} body.writing .chal{padding:8px 12px} }
 </style>
 </head>
 <body>
