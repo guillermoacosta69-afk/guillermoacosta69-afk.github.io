@@ -578,6 +578,19 @@ body.playing .toast{white-space:normal;text-align:center;max-width:92vw}
 .cm small{display:block;font-size:.66rem!important;line-height:1.1!important;margin:0!important;color:var(--muted);font-weight:800}
 @media (max-height:700px){ body.writing .cm{min-height:50px;padding:3px 2px!important;gap:1px} body.writing .cm i{font-size:1rem!important;height:1.1rem} body.writing .cm span{display:block!important;font-size:.64rem!important} body.writing .cm small{font-size:.6rem!important}
   body.writing .key{height:36px} body.writing .key.space{height:34px} body.writing .kbd{gap:5px} body.writing .board{gap:6px} body.writing .note{font-size:.82rem;margin:0} body.writing .chal{padding:8px 12px} }
+
+/* Pantallas que tienen que quedar fijas (portada, inicio, jugando): no se mueven ni rebotan */
+html:has(body.lock), body.lock{height:100%;overflow:hidden;overscroll-behavior:none}
+body.lock main{overscroll-behavior:none}
+body{overscroll-behavior-y:none}
+/* Ajuste automático si jugando no entra justo */
+body.tightplay .key{height:clamp(34px,5.4svh,44px)!important}
+body.tightplay .key.space{height:clamp(32px,5svh,40px)!important}
+body.tightplay .kbd{gap:5px}
+body.tightplay .cm{min-height:48px}
+body.tightplay .cm i{font-size:1.05rem!important;height:1.15rem}
+body.tightplay main{gap:7px}
+body.tightplay .chal{padding-top:8px;padding-bottom:8px}
 </style>
 </head>
 <body>
@@ -761,6 +774,8 @@ body.playing .toast{white-space:normal;text-align:center;max-width:92vw}
     <div class="kthemes" id="kThemes"></div>
     <button class="chip vibchip" id="vibBtn" aria-pressed="true">Vibrar al escribir: sí</button>
     <button class="chip vibchip" id="fxBtn" aria-pressed="true">Ruidos y sacudones fuertes: sí</button>
+    <button class="chip vibchip" id="tickBtn" aria-pressed="true">Tic tac del reloj: sí</button>
+    <button class="chip vibchip" id="bipBtn" aria-pressed="false">Bip al tocar las teclas: no</button>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -877,8 +892,17 @@ const sfx = {
   plop(){ tone(900, .06, "sine", 0, .12); tone(450, .08, "sine", .03, .1); },
   fizz(){ noise(.15, 0, .12, 4000, 2000); },
   shield(){ tone(880, .1, "triangle"); tone(1320, .18, "triangle", .08); tone(1760, .2, "sine", .16, .08); },
-  splash(){ noise(.5, 0, .2, 2500, 500); tone(300, .2, "sine", .05, .08); }
+  splash(){ noise(.5, 0, .2, 2500, 500); tone(300, .2, "sine", .05, .08); },
+  /* Reloj: tic y tac de madera; más fuerte y agudo cuando queda poco */
+  clock(tac, urgent){ if (!tickOn) return; const f = tac ? 1250 : 1650, v = urgent ? .2 : .1; noise(.035, 0, urgent ? .28 : .14, 6000, 1500); tone(f, .03, "square", 0, v * .35); },
+  /* Se acabó el tiempo: chicharra que baja */
+  timeUp(){ tone(520, .18, "sawtooth", 0, .13); tone(390, .22, "sawtooth", .17, .13); tone(260, .45, "sawtooth", .36, .14); noise(.4, .36, .08, 900, 100); },
+  /* Choque de las fichas en la portada */
+  clash(){ noise(.55, 0, .32, 1400, 70); tone(95, .45, "sine", 0, .22); tone(1300, .05, "square", 0, .05); },
+  /* Bip de cada tecla */
+  key(){ if (keyBeep) tone(1180, .035, "square", 0, .045); }
 };
+let tickOn = store.get("tictac", true), keyBeep = store.get("bip", false);
 let noiseBuf = null, fxStrong = store.get("fxfuerte", true);
 function noise(d, when = 0, vol = .2, lp = 1000, hp = 60){
   if (!soundOn || !actx) return;
@@ -1215,6 +1239,19 @@ let role = null;          // null | "h" (anfitrión o solo) | "g" (invitado)
 let game = null, code = "", S = null, me = null, cachedHost = null, hostSeen = 0;
 let R = null, cpuSched = [], nextPen = [0,0,0,0];
 let roundStart = 0, hostEnd = 0, deadline = 0, phaseKey = "", mt = null, finishedSeed = 0, lastTickSec = -1;
+/* Tic tac: un golpe por segundo; con menos de 10 s, dos por segundo; con menos de 5 s, cuatro.
+   Cuando se termina el tiempo propio, suena la chicharra una sola vez por ronda. */
+let clockStep = -1, clockTac = false, timeUpKey = "";
+function clockTick(left, active, key){
+  if (!active) { clockStep = -1; return; }
+  if (left <= 0) {
+    if (timeUpKey !== key) { timeUpKey = key; sfx.timeUp(); bigBuzz([120, 60, 260]); }
+    return;
+  }
+  const per = left <= 5000 ? 250 : left <= 10000 ? 500 : 1000, step = Math.floor(left / per);
+  if (clockStep === -1) { clockStep = step; return; }
+  if (step !== clockStep) { clockStep = step; clockTac = !clockTac; sfx.clock(clockTac, left <= 10000); }
+}
 const DEF_CFG = { rounds:7, time:30, mode:"ffa", style:"simul", themes:["animales","comida","casa"], flash:true, ai:true, loco:true };
 
 function hostState(){
@@ -1239,6 +1276,7 @@ function show(id){
   document.body.classList.toggle("playing", id === "sPlay");
   document.body.classList.toggle("cover", id === "sCover");
   document.body.classList.toggle("home", id === "sHome");
+  document.body.classList.toggle("lock", id === "sCover" || id === "sHome");
   ADS.setBanner(id === "sHome" || id === "sSetup" || id === "sEnd");
   if (id !== "sPlay") document.body.classList.remove("typing", "writing");
   window.scrollTo(0, 0);
@@ -2182,12 +2220,12 @@ function renderBuzz(hs, my, pen, now, left){
     const sec = Math.ceil(mine / 1000);
     const pressed = role === "g" && me && me.bz === hs.seed + ":" + hs.n;
     if (isOut(hs)) return lock("Te quedaste sin vidas. Mirá cómo sigue la partida.");
-    if (bz.tried[my]) return lock("Ya intentaste. Esperá la próxima ronda.");
-    if (mine <= 0) return lock("Se te terminó el tiempo en esta ronda.");
+    if (bz.tried[my]) { clockTick(0, false); return lock("Ya intentaste. Esperá la próxima ronda."); }
+    if (mine <= 0) { clockTick(0, true, hs.seed + ":" + hs.n); return lock("Se te terminó el tiempo en esta ronda."); }
     if (pressed) return lock("¡Enviada! Esperando la revisión…");
     $("ans").disabled = false; $("sendBtn").disabled = false;
     if (wn.textContent !== "Primero escribí la palabra.") wn.textContent = `Quedan ${sec} s. Escribí la palabra y tocá «¡Lo tengo!».`;
-    if (sec <= 5 && sec !== lastTickSec && sec > 0) { lastTickSec = sec; sfx.tick(); }
+    clockTick(mine, true, hs.seed + ":" + hs.n);
     return;
   }
   $("barFill").style.width = (lim ? (bz.rem[my] || 0) / lim * 100 : 0) + "%"; $("bar").className = "bar";
@@ -2212,6 +2250,8 @@ function renderPlay(hs){
 
   $("bzBox").style.display = hs.ph === "w" && isBuzz(hs) ? "flex" : "none";
   document.body.classList.toggle("writing", hs.ph === "w");
+  document.body.classList.toggle("lock", hs.ph === "w");
+  if (hs.ph === "w") fitPlay();
   renderCmBar(hs);
   renderGuess(hs);
   const goIn = hs.ph === "w" ? goLocal(hs) - now : 0;
@@ -2238,7 +2278,7 @@ function renderPlay(hs){
     $("ans").disabled = sent; $("sendBtn").disabled = sent;
     const others = (hs.done || []).filter((d, i) => d && i !== my).length;
     const sec = Math.ceil(left / 1000);
-    if (!sent && sec <= 5 && sec !== lastTickSec && sec > 0) { lastTickSec = sec; sfx.tick(); }
+    clockTick(left, !sent, hs.seed + ":" + hs.n);
     if (sent) $("wNote").textContent = `Enviada. ${others ? `Ya respondieron ${others + 1}.` : "Esperando al resto."}`;
     else if ($("wNote").textContent !== "Escribí algo antes de enviar.") $("wNote").textContent = `Quedan ${sec} s${others ? `. Ya respondieron ${others}.` : "."}`;
     return;
@@ -2334,7 +2374,7 @@ setInterval(() => {
   const hs = hostState();
   if (hs) {
     sync();
-    if (hs.ph === "w" && hs.cur && !iAnswered(hs) && !isOut(hs) && mySeat(hs) >= 0 && deadline && Date.now() > deadline && !isBuzz(hs)) submit(true);
+    if (hs.ph === "w" && hs.cur && !iAnswered(hs) && !isOut(hs) && mySeat(hs) >= 0 && deadline && Date.now() > deadline && !isBuzz(hs)) { const k = hs.seed + ":" + hs.n; if (timeUpKey !== k) { timeUpKey = k; sfx.timeUp(); bigBuzz([120, 60, 260]); } submit(true); }
   }
   hostTick(Date.now());
   render();
@@ -2415,7 +2455,7 @@ kbdEl.addEventListener("pointerdown", e => {
   const b = e.target.closest(".key"); if (!b || $("ans").disabled) return;
   e.preventDefault();
   b.classList.add("down"); setTimeout(() => b.classList.remove("down"), 120);
-  haptic(10);
+  haptic(10); sfx.key();
   pressKey(b.dataset.k, b);
   if (b.dataset.k === "del") { clearInterval(delTimer); delTimer = setTimeout(function rep(){ kbdType("del"); delTimer = setTimeout(rep, 70); }, 420); }
 });
@@ -2435,6 +2475,17 @@ document.addEventListener("keydown", e => {
 new MutationObserver(() => kbdEl.classList.toggle("off", $("ans").disabled)).observe($("ans"), { attributes:true, attributeFilter:["disabled"] });
 
 /* Ajusta la ilustración para que la portada y el inicio entren justo en la pantalla, sin bajar */
+/* Jugando: si el contenido no entra justo, achica el teclado y los comodines un poco */
+let fitPlayKey = "";
+function fitPlay(){
+  /* Con la pantalla fija no se puede medir por el alto de la página: se mide dónde termina el teclado */
+  const k = $("kbd"); if (!k || !k.offsetParent) return;
+  const padB = parseFloat(getComputedStyle(document.documentElement).paddingBottom) || 0;
+  const over = () => k.getBoundingClientRect().bottom - (innerHeight - padB - 4);
+  const b = document.body;
+  if (!b.classList.contains("tightplay") && over() > 0) b.classList.add("tightplay");
+  else if (b.classList.contains("tightplay") && over() < -90) b.classList.remove("tightplay");
+}
 function fitScreen(){
   const scr = curScreen === "sHome" ? $("sHome").querySelector(".cta-art .hero-svg") : curScreen === "sCover" ? $("sCover").querySelector(".cover-art .hero-svg") : null;
   document.body.classList.remove("tight");
@@ -2497,6 +2548,23 @@ function renderGuess(hs){
   if (isBuzz(hs) && hs.bz && hs.bz.who >= 0) left = (hs.bz.rem || [])[my] || 0;
   setHTML(el, guessPattern(d.ans, d.id, 1 - left / lim));
 }
+
+/* ---------- Portada: suena una explosión cada vez que chocan las fichas ---------- */
+(function(){
+  const c = document.querySelector("#sCover .hero-svg .hero-c"); if (!c) return;
+  const hit = () => setTimeout(() => { if (curScreen === "sCover" && !document.hidden) { unlockAudio(); sfx.clash(); bigBuzz(40); } }, 3200 * .52);
+  c.addEventListener("animationstart", hit);
+  c.addEventListener("animationiteration", hit);
+})();
+try { unlockAudio(); } catch(e) {}
+/* ---------- Opciones de sonido en la hoja del teclado ---------- */
+function paintSnd(){
+  $("tickBtn").setAttribute("aria-pressed", tickOn); $("tickBtn").textContent = tickOn ? "Tic tac del reloj: sí" : "Tic tac del reloj: no";
+  $("bipBtn").setAttribute("aria-pressed", keyBeep); $("bipBtn").textContent = keyBeep ? "Bip al tocar las teclas: sí" : "Bip al tocar las teclas: no";
+}
+$("tickBtn").onclick = () => { tickOn = !tickOn; store.set("tictac", tickOn); paintSnd(); unlockAudio(); if (tickOn) { sfx.clock(false, false); setTimeout(() => sfx.clock(true, false), 250); } };
+$("bipBtn").onclick = () => { keyBeep = !keyBeep; store.set("bip", keyBeep); paintSnd(); unlockAudio(); sfx.key(); };
+paintSnd();
 
 /* ---------- Versión web: instalable y sin conexión ---------- */
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
