@@ -124,6 +124,14 @@ input:focus{outline:none;border-color:var(--yellow);box-shadow:0 0 0 4px rgba(25
 @keyframes linesL{0%,40%{transform:translateX(-10px);opacity:.4}52%{transform:translateX(6px);opacity:1}100%{transform:translateX(0);opacity:.8}}
 @keyframes linesR{0%,40%{transform:translateX(10px);opacity:.4}52%{transform:translateX(-6px);opacity:1}100%{transform:translateX(0);opacity:.8}}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+/* En la portada las fichas chocan una sola vez y quedan juntas */
+#sCover .hero-svg .hero-c{animation:hitL1 3.2s cubic-bezier(.5,0,.3,1) 1 forwards}
+#sCover .hero-svg .hero-p{animation:hitR1 3.2s cubic-bezier(.5,0,.3,1) 1 forwards}
+#sCover .hero-svg .hero-burst{animation:boom 3.2s ease-out 1 forwards}
+#sCover .hero-svg .hero-lines-l{animation:linesL 3.2s ease-in-out 1 forwards}
+#sCover .hero-svg .hero-lines-r{animation:linesR 3.2s ease-in-out 1 forwards}
+@keyframes hitL1{0%,42%{transform:translateX(-22px)}52%{transform:translateX(4px)}60%{transform:translateX(-3px)}70%,100%{transform:translateX(0)}}
+@keyframes hitR1{0%,42%{transform:translateX(22px)}52%{transform:translateX(-4px)}60%{transform:translateX(3px)}70%,100%{transform:translateX(0)}}
 
 /* ---- Portada ---- */
 body.cover .brand, body.cover footer{display:none}
@@ -779,6 +787,7 @@ body.tightplay .chal{padding-top:8px;padding-bottom:8px}
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<script>window.SND_DIR = "";</script>
 <script src="supabase.js"></script>
 <script src="online-config.js"></script>
 <script src="online.js"></script>
@@ -866,18 +875,42 @@ const SND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const paintSound = () => { $("soundBtn").innerHTML = soundOn ? SND_ON : SND_OFF; $("soundBtn").setAttribute("aria-label", soundOn ? "Silenciar" : "Activar sonido"); };
 paintSound();
 $("soundBtn").onclick = () => { soundOn = !soundOn; store.set("sound", soundOn); paintSound(); unlockAudio(); };
-function unlockAudio(){ if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} } if (actx && actx.state === "suspended") actx.resume(); }
-document.addEventListener("pointerdown", unlockAudio, { once:true });
+/* El audio del celular arranca "dormido" hasta un toque real. En Android un toque cuenta recién
+   al levantar el dedo (touchend / click), no al apoyarlo: por eso se escucha en varios eventos
+   y se reintenta en cada toque hasta que quede andando (y otra vez si la app vuelve de segundo plano). */
+function unlockAudio(){
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
+  if (actx && actx.state !== "running") { try { const r = actx.resume(); if (r && r.then) r.then(loadSamples, () => {}); } catch(e) {} }
+  else if (actx) loadSamples();
+}
+["touchend", "click", "keydown", "pointerup"].forEach(ev => document.addEventListener(ev, unlockAudio, { passive:true, capture:true }));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) unlockAudio(); });
+/* Sonidos grabados (CC0 de Kenney y OpenGameArt). Si alguno no carga, se usa el sintetizado. */
+const SAMPLES = ["choque","bomba","tic","tac","fin","gameover","tecla","fuego","burbuja","bocina","escudo","hielo","terremoto","bien","mal","swish"];
+const sbuf = {}; let samplesAsked = false;
+function loadSamples(){
+  if (samplesAsked || !actx) return; samplesAsked = true;
+  SAMPLES.forEach(n => fetch(SND_DIR + n + ".mp3").then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(b => new Promise((ok, no) => actx.decodeAudioData(b, ok, no))).then(buf => { sbuf[n] = buf; }).catch(() => {}));
+}
+const SND_DIR = typeof window.SND_DIR === "string" ? window.SND_DIR : "sonidos/";
+function play(n, vol = .9, rate = 1){
+  if (!soundOn || !actx || !sbuf[n]) return false;
+  if (actx.state !== "running") { try { actx.resume(); } catch(e) {} }
+  if (!fxStrong && n !== "tecla" && n !== "tic" && n !== "tac") vol *= .45;
+  try { const src = actx.createBufferSource(), g = actx.createGain(); src.buffer = sbuf[n]; src.playbackRate.value = rate; g.gain.value = vol; src.connect(g).connect(actx.destination); src.start(); return true; } catch(e) { return false; }
+}
 function tone(f, d, type = "sine", when = 0, vol = .12){
   if (!soundOn || !actx) return;
+  if (actx.state !== "running") { try { actx.resume(); } catch(e) {} }
   const t = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
   o.connect(g).connect(actx.destination); o.start(t); o.stop(t + d + .02);
 }
 const sfx = {
-  good(){ tone(660,.12,"triangle"); tone(880,.14,"triangle",.1); tone(1320,.2,"triangle",.2); },
-  bad(){ tone(220,.25,"sawtooth",0,.08); tone(170,.3,"sawtooth",.15,.08); },
+  good(){ if (play("bien", .7)) return; tone(660,.12,"triangle"); tone(880,.14,"triangle",.1); tone(1320,.2,"triangle",.2); },
+  bad(){ if (play("mal", .6)) return; tone(220,.25,"sawtooth",0,.08); tone(170,.3,"sawtooth",.15,.08); },
   crash(){ tone(90,.35,"square",0,.15); tone(60,.4,"square",.05,.12); },
   tick(){ tone(1000,.05,"square",0,.05); },
   start(){ tone(520,.08,"triangle"); tone(780,.12,"triangle",.08); },
@@ -885,22 +918,22 @@ const sfx = {
   robbed(){ tone(400,.15,"sawtooth",0,.08); tone(300,.2,"sawtooth",.12,.08); },
   win(){ [523,659,784,1047].forEach((f,i) => tone(f,.22,"triangle",i*.12)); },
   /* Efectos de los comodines (ruido sintetizado, sin archivos) */
-  boom(big = true){ noise(big ? .9 : .45, 0, big ? .55 : .3, 900, 60); tone(70, big ? .7 : .35, "sine", 0, big ? .35 : .2); },
-  fire(){ for (let i = 0; i < 7; i++) noise(.06, i * .09 + Math.random() * .04, .18, 3000, 1200); noise(.9, 0, .08, 1200, 400); },
-  rumble(){ noise(1.6, 0, .32, 220, 40); tone(45, 1.4, "sine", 0, .25); },
-  horn(){ if (!fxStrong) { tone(700, .25, "triangle", 0, .08); return; } [0, .32, .64].forEach(w => { tone(440, .28, "sawtooth", w, .16); tone(554, .28, "sawtooth", w, .12); }); },
-  plop(){ tone(900, .06, "sine", 0, .12); tone(450, .08, "sine", .03, .1); },
+  boom(big = true){ if (play(big ? "bomba" : "choque", big ? 1 : .8)) return; noise(big ? .9 : .45, 0, big ? .55 : .3, 900, 60); tone(70, big ? .7 : .35, "sine", 0, big ? .35 : .2); },
+  fire(){ if (play("fuego", .85)) return; for (let i = 0; i < 7; i++) noise(.06, i * .09 + Math.random() * .04, .18, 3000, 1200); noise(.9, 0, .08, 1200, 400); },
+  rumble(){ if (play("terremoto", 1)) return; noise(1.6, 0, .32, 220, 40); tone(45, 1.4, "sine", 0, .25); },
+  horn(){ if (play("bocina", fxStrong ? 1 : .5)) return; if (!fxStrong) { tone(700, .25, "triangle", 0, .08); return; } [0, .32, .64].forEach(w => { tone(440, .28, "sawtooth", w, .16); tone(554, .28, "sawtooth", w, .12); }); },
+  plop(){ if (play("burbuja", .7, .9 + Math.random() * .3)) return; tone(900, .06, "sine", 0, .12); tone(450, .08, "sine", .03, .1); },
   fizz(){ noise(.15, 0, .12, 4000, 2000); },
-  shield(){ tone(880, .1, "triangle"); tone(1320, .18, "triangle", .08); tone(1760, .2, "sine", .16, .08); },
-  splash(){ noise(.5, 0, .2, 2500, 500); tone(300, .2, "sine", .05, .08); },
+  shield(){ if (play("escudo", .8)) return; tone(880, .1, "triangle"); tone(1320, .18, "triangle", .08); tone(1760, .2, "sine", .16, .08); },
+  splash(){ if (play("swish", .8)) return; noise(.5, 0, .2, 2500, 500); tone(300, .2, "sine", .05, .08); },
   /* Reloj: tic y tac de madera; más fuerte y agudo cuando queda poco */
-  clock(tac, urgent){ if (!tickOn) return; const f = tac ? 1250 : 1650, v = urgent ? .2 : .1; noise(.035, 0, urgent ? .28 : .14, 6000, 1500); tone(f, .03, "square", 0, v * .35); },
+  clock(tac, urgent){ if (!tickOn) return; if (play(tac ? "tac" : "tic", urgent ? 1 : .6, urgent ? 1.08 : 1)) return; const f = tac ? 1250 : 1650, v = urgent ? .2 : .1; noise(.035, 0, urgent ? .28 : .14, 6000, 1500); tone(f, .03, "square", 0, v * .35); },
   /* Se acabó el tiempo: chicharra que baja */
-  timeUp(){ tone(520, .18, "sawtooth", 0, .13); tone(390, .22, "sawtooth", .17, .13); tone(260, .45, "sawtooth", .36, .14); noise(.4, .36, .08, 900, 100); },
+  timeUp(){ if (play("fin", 1)) return; tone(520, .18, "sawtooth", 0, .13); tone(390, .22, "sawtooth", .17, .13); tone(260, .45, "sawtooth", .36, .14); noise(.4, .36, .08, 900, 100); },
   /* Choque de las fichas en la portada */
-  clash(){ noise(.55, 0, .32, 1400, 70); tone(95, .45, "sine", 0, .22); tone(1300, .05, "square", 0, .05); },
+  clash(){ if (play("choque", .75)) return; noise(.55, 0, .32, 1400, 70); tone(95, .45, "sine", 0, .22); tone(1300, .05, "square", 0, .05); },
   /* Bip de cada tecla */
-  key(){ if (keyBeep) tone(1180, .035, "square", 0, .045); }
+  key(){ if (!keyBeep) return; if (play("tecla", .55, .95 + Math.random() * .1)) return; tone(1180, .035, "square", 0, .045); }
 };
 let tickOn = store.get("tictac", true), keyBeep = store.get("bip", false);
 let noiseBuf = null, fxStrong = store.get("fxfuerte", true);
@@ -1767,7 +1800,7 @@ function applyFx(k, name, msg){
   if (k === "mezcla") { kb.mixUntil = Math.max(kb.mixUntil, now + 12000); kb.perm = shuffledLetters(); kb.nextMix = now + 3000; }
   if (k === "espejo") kb.mirror = true;
   if (k === "fantasma") kb.ghostUntil = now + 6000;
-  if (k === "hielo") kb.iceUntil = now + 3000;
+  if (k === "hielo") { kb.iceUntil = now + 3000; if (play("hielo", .95)) { hold = 1; bigBuzz([40, 30, 120]); } }
   if (k === "borron" && !$("ans").disabled) { $("ans").value = ""; $("ans").dispatchEvent(new Event("input")); }
   if (k === "bomba") {
     kb.boomUntil = now + 1900;
@@ -2107,7 +2140,9 @@ function endMatch(hs){
   if (lv >= 5) unlock("nivel5"); if (lv >= 10) unlock("nivel10");
   store.set("prof", prof);
   endInfo = { gain, got, up: lv > lvBefore, lv, won, survived, newRec };
-  if (won) { sfx.win(); confetti(); } else sfx.bad();
+  /* Final de la partida: la voz de "Game over" para todos; si ganaste, después suena el festejo */
+  const go = play("gameover", .95);
+  if (won) { confetti(); setTimeout(() => sfx.win(), go ? 1700 : 0); } else if (!go) sfx.bad();
 }
 
 /* ---------- Pantallas ---------- */
@@ -2552,9 +2587,9 @@ function renderGuess(hs){
 /* ---------- Portada: suena una explosión cada vez que chocan las fichas ---------- */
 (function(){
   const c = document.querySelector("#sCover .hero-svg .hero-c"); if (!c) return;
-  const hit = () => setTimeout(() => { if (curScreen === "sCover" && !document.hidden) { unlockAudio(); sfx.clash(); bigBuzz(40); } }, 3200 * .52);
-  c.addEventListener("animationstart", hit);
-  c.addEventListener("animationiteration", hit);
+  const hit = () => setTimeout(() => { if (curScreen === "sCover" && !document.hidden) { unlockAudio(); sfx.clash(); bigBuzz([30, 20, 90]); } }, 3200 * .52);
+  /* Una sola vez: suena el golpe en el momento del choque */
+  c.addEventListener("animationstart", hit, { once:true });
 })();
 try { unlockAudio(); } catch(e) {}
 /* ---------- Opciones de sonido en la hoja del teclado ---------- */
